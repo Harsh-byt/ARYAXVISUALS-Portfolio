@@ -3131,7 +3131,7 @@ p("section", { id: "workflow", className: "max-w-[1320px] mx-auto px-4 md:px-6 p
           unloadVideo(video);
         }
       });
-    }, { rootMargin: "0px", threshold: 0.15 });
+    }, { rootMargin: "40px 0px", threshold: 0.01 });
   }
 
   observeVideos();
@@ -3161,16 +3161,26 @@ p("section", { id: "workflow", className: "max-w-[1320px] mx-auto px-4 md:px-6 p
   function openVideo(src, currentTime) {
     if (!src) return;
 
+    /* Stop every background preview while the full video is open.
+       This prevents the modal video from competing for bandwidth. */
+    document.querySelectorAll("#root video[data-src]").forEach(function (video) {
+      video.pause();
+    });
+
     player.pause();
     player.src = src;
     player.currentTime = 0;
     player.muted = false;
     player.volume = 1;
+    player.removeAttribute("autoplay");
+    player.preload = "metadata";
 
     viewer.classList.add("active");
     viewer.setAttribute("aria-hidden", "false");
     document.body.style.overflow = "hidden";
 
+    /* Autoplay the full-screen video after the user clicks the preview.
+       The click itself provides the user interaction needed to start playback. */
     player.play().catch(function () {
     });
   }
@@ -3182,6 +3192,30 @@ p("section", { id: "workflow", className: "max-w-[1320px] mx-auto px-4 md:px-6 p
     viewer.classList.remove("active");
     viewer.setAttribute("aria-hidden", "true");
     document.body.style.overflow = "";
+
+    /* Re-check the viewport after closing so only visible previews resume. */
+    document.querySelectorAll("#root video[data-src]").forEach(function (video) {
+      var rect = video.getBoundingClientRect();
+      var visible = rect.bottom > 0 &&
+                    rect.top < window.innerHeight &&
+                    rect.right > 0 &&
+                    rect.left < window.innerWidth;
+
+      if (visible) {
+        var source = video.getAttribute("data-src");
+        if (source && !video.src) {
+          video.src = source;
+          video.preload = "auto";
+          video.load();
+        }
+        video.muted = true;
+        video.defaultMuted = true;
+        video.loop = true;
+        video.playsInline = true;
+        var promise = video.play();
+        if (promise && promise.catch) promise.catch(function () {});
+      }
+    });
   }
 
   document.addEventListener("click", function (event) {

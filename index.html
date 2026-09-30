@@ -6,6 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="shortcut icon" href="logo/favicon.jpeg" type="image/x-icon">
   <title>AryaxVisuals</title>
+  <link rel="preconnect" href="https://res.cloudinary.com" crossorigin>
+  <link rel="dns-prefetch" href="//res.cloudinary.com">
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Anton&display=swap');
     *,
@@ -3058,13 +3060,20 @@ p("section", { id: "workflow", className: "max-w-[1320px] mx-auto px-4 md:px-6 p
 (function () {
   var observedVideos = new WeakSet();
   var videoObserver = null;
+  var portfolioLoadTimer = null;
 
-  function loadAndPlay(video) {
+  function loadVideo(video, shouldPlay) {
+    if (!video) return;
+
+    var source = video.getAttribute("data-src");
+    if (!source) return;
+
     if (!video.src) {
-      var source = video.getAttribute("data-src");
-      if (!source) return;
       video.src = source;
+      video.preload = "auto";
       video.load();
+    } else {
+      video.preload = "auto";
     }
 
     video.muted = true;
@@ -3072,20 +3081,48 @@ p("section", { id: "workflow", className: "max-w-[1320px] mx-auto px-4 md:px-6 p
     video.loop = true;
     video.playsInline = true;
 
-    var promise = video.play();
-    if (promise && promise.catch) promise.catch(function () {});
+    if (shouldPlay) {
+      var promise = video.play();
+      if (promise && promise.catch) promise.catch(function () {});
+    }
+  }
+
+  /*
+   * When the Long/Short Form page opens, start ALL portfolio videos at once.
+   * This makes Cloudinary begin downloading the complete portfolio immediately
+   * instead of waiting for each card to enter the viewport.
+   */
+  function loadPortfolioVideosNow() {
+    var heading = document.querySelector("#root h1");
+    if (!heading) return;
+
+    var title = heading.textContent.replace(/\s+/g, " ").trim();
+    var isPortfolioPage = title.indexOf("LONG FORM") !== -1 || title.indexOf("SHORT FORM") !== -1;
+    if (!isPortfolioPage) return;
+
+    clearTimeout(portfolioLoadTimer);
+    portfolioLoadTimer = setTimeout(function () {
+      document.querySelectorAll("#root video[data-src]").forEach(function (video) {
+        loadVideo(video, true);
+      });
+    }, 80);
   }
 
   function observeVideos() {
-    document.querySelectorAll("#root video[data-src]").forEach(function (video) {
+    var videos = document.querySelectorAll("#root video[data-src]");
+
+    videos.forEach(function (video) {
       if (observedVideos.has(video)) return;
       observedVideos.add(video);
       video.setAttribute("muted", "");
       video.setAttribute("playsinline", "");
       video.setAttribute("loop", "");
       video.setAttribute("autoplay", "");
+      video.setAttribute("preload", "auto");
       if (videoObserver) videoObserver.observe(video);
     });
+
+    loadPortfolioVideosNow();
   }
 
   if ("IntersectionObserver" in window) {
@@ -3093,16 +3130,17 @@ p("section", { id: "workflow", className: "max-w-[1320px] mx-auto px-4 md:px-6 p
       entries.forEach(function (entry) {
         var video = entry.target;
         if (entry.isIntersecting) {
-          loadAndPlay(video);
+          loadVideo(video, true);
         } else {
-          video.pause();
+          /* Keep the source loaded, but stop playback when far off-screen. */
+          if (video.src) video.pause();
         }
       });
-    }, { rootMargin: "300px 0px", threshold: 0.05 });
+    }, { rootMargin: "500px 0px", threshold: 0.01 });
   }
 
-  // Videos are rendered when Long Form / Short Form is opened, so watch for React-rendered videos too.
   observeVideos();
+
   var root = document.getElementById("root");
   if (root) {
     var mutationObserver = new MutationObserver(function () {
@@ -3111,9 +3149,9 @@ p("section", { id: "workflow", className: "max-w-[1320px] mx-auto px-4 md:px-6 p
     mutationObserver.observe(root, { childList: true, subtree: true });
   }
 
-  // Extra pass for navigation/page switches.
   setTimeout(observeVideos, 100);
   setTimeout(observeVideos, 500);
+  setTimeout(observeVideos, 1200);
 })();
 </script>
 

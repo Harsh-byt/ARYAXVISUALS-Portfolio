@@ -452,7 +452,7 @@ p("section", { id: "workflow", className: "max-w-[1320px] mx-auto px-4 md:px-6 p
 
       if (text === "Years Experience") target = 4;
       if (text === "Projects Delivered") target = 500;
-      if (text === "Happy Clients") target = 100;
+      if (text === "Happy Clients") target = 50;
       if (target === null) return;
 
       var numberEl = label.previousElementSibling;
